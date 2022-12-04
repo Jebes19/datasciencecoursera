@@ -1,0 +1,77 @@
+---
+title: "NYPD Shooting data analysis"
+output:
+  pdf_document: default
+date: "2022-10-31"
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(ggplot2)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## NYPD Shooting Data source
+
+(Data description from the hosting website, <https://catalog.data.gov/dataset/nypd-shooting-incident-data-historic>)
+
+"List of every shooting incident that occurred in NYC going back to 2006 through the end of the previous calendar year.
+
+This is a breakdown of every shooting incident that occurred in NYC going back to 2006 through the end of the previous calendar year. This data is manually extracted every quarter and reviewed by the Office of Management Analysis and Planning before being posted on the NYPD website. Each record represents a shooting incident in NYC and includes information about the event, the location and time of occurrence. In addition, information related to suspect and victim demographics is also included. This data can be used by the public to explore the nature of shooting/criminal activity."
+
+```{r import_data, message = FALSE}
+URL = "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv"
+NYPD_data = read_csv(URL)
+```
+
+## NYPD Shooting Data analysis
+
+Summary of data set:
+
+```{r}
+summary(NYPD_data)
+```
+
+There are a large number of missing values for each of the columns, so analysis will be focused on the take this into account.
+
+## Plots
+
+Shootings in NYC are local phenomenom. Concentrated in particular areas.
+
+```{r Shootings_map}
+lat = NYPD_data$Latitude
+lon = NYPD_data$Longitude
+ggplot(data=NYPD_data, aes(x = lon, y = lat)) + geom_text(label = ".") + ggtitle('Shootings by GPS coordinates')
+```
+
+I was intrigued by the missing data on perpetrator sex. Several factors might account for missing information about the suspect, but I wanted to see if there were certain areas of NY where that information was being withheld more often than others. My Hypothesis was that a particular neighborhood might be less willing to talk to police for example.
+
+```{r Unreported_map}
+data = filter(NYPD_data, is.na(NYPD_data$PERP_SEX))
+lat2 = data$Latitude
+lon2 = data$Longitude
+ggplot(data=data, aes(x = lon2, y = lat2)) + geom_text(label = ".") + ggtitle('Unreported Suspect sex by GPS coordinates')
+```
+
+However both were distributed more or less in the same pattern, challenging the idea that the missing information was localized even further than the shooting were at the outset.
+
+Another area of analysis is whether or not the sex of a victim is correlated to the sex of the suspect.
+
+```{r Victim Sex vs Suspect Sex}
+
+complete_data = drop_na(NYPD_data, PERP_SEX)
+complete_data$PERP_SEX = replace(complete_data$PERP_SEX, complete_data$PERP_SEX == 'M', 1)
+complete_data$PERP_SEX = replace(complete_data$PERP_SEX, complete_data$PERP_SEX == 'F', 2)
+complete_data$PERP_SEX = replace(complete_data$PERP_SEX, complete_data$PERP_SEX == 'U', 0)
+complete_data$VIC_SEX = replace(complete_data$VIC_SEX, complete_data$VIC_SEX == 'M', 1)
+complete_data$VIC_SEX = replace(complete_data$VIC_SEX, complete_data$VIC_SEX == 'F', 2)
+complete_data$VIC_SEX = replace(complete_data$VIC_SEX, complete_data$VIC_SEX == 'U', 0)
+
+lm(complete_data$PERP_SEX ~ complete_data$VIC_SEX, data = complete_data)
+```
+
+In both cases, the correlation coefficient is very small, less that -.10 in both cases, indicating a very weak link between Suspect and Victim Sex.
+
+Potential Bias
+
+I am human and therefore subject to bias. I am not a New York resident and likely less passionate about New York issues as a result. I started the analysis with certain hypotheses and that made me more likely to find evidence of those conclusions.
